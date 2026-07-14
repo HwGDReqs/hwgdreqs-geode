@@ -1,6 +1,5 @@
-# v0.1.0-beta2
-- removed every platform but windows+macos since hwgdreqs for now is desktop only (for macos you manually clone the repo, do `pip install -r requirements.txt` and launch main.py, untested)
-
+# v0.2.0-beta
+- removed every platform but windows since hwgdreqs for now is desktop only
 
 # v0.1.0-beta
 - initial release
