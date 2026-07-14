@@ -3,9 +3,9 @@
 	"gd": {
 		"win": "2.2081"
 	},
-	"id": "hwgdreqs.integration",
+	"id": "hwgdreqs.hwgdreqs-integration",
 	"name": "HwGDReqs integration",
-	"version": "v0.1.1",
+	"version": "v0.1.0",
 	"developers": ["HwGDReqs org", "Kwaita"],
 	"description": "HwGDReqs integrated to gd",
 	"dependencies": {
