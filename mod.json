@@ -1,12 +1,11 @@
 {
 	"geode": "5.7.1",
 	"gd": {
-		"win": "2.2081",
-		"mac": "2.2081"
+		"win": "2.2081"
 	},
 	"id": "hwgdreqs.integration",
 	"name": "HwGDReqs integration",
-	"version": "v0.1.1-beta.2",
+	"version": "v0.2.0-beta",
 	"developers": ["HwGDReqs org", "Kwaita"],
 	"description": "HwGDReqs integrated to gd",
 	"dependencies": {
