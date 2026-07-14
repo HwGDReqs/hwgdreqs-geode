@@ -1,0 +1,22 @@
+{
+	"geode": "5.7.1",
+	"gd": {
+		"win": "2.2081",
+		"android": "2.2081",
+		"mac": "2.2081",
+		"ios": "2.2081"
+	},
+	"id": "hwgdreqs.integration",
+	"name": "HwGDReqs integration",
+	"version": "v0.1.0-beta",
+	"developers": ["HwGDReqs org", "Kwaita"],
+	"description": "HwGDReqs integrated to gd",
+	"dependencies": {
+		"geode.node-ids": ">=v1.23.3"
+	},
+	"resources": {
+		"sprites": [
+			"resources/button.png"
+		]
+	}
+}
