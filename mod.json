@@ -6,7 +6,7 @@
 	},
 	"id": "hwgdreqs.integration",
 	"name": "HwGDReqs integration",
-	"version": "v0.1.0-beta.2",
+	"version": "v0.1.1-beta.2",
 	"developers": ["HwGDReqs org", "Kwaita"],
 	"description": "HwGDReqs integrated to gd",
 	"dependencies": {
