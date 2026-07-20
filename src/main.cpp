@@ -6,8 +6,16 @@
 
 using namespace geode::prelude;
 
-constexpr char HWGDREQS_BASE_URL[] = "http://localhost:6767"; // am i doing it right??
 constexpr char HWGDREQS_ERR_MSG[] = "Failed since HwGDReqs isnt running anymore";
+
+std::string getHwgdreqsBaseUrl() {
+    auto customLink = Mod::get()->getSettingValue<std::string>("custom-api-link");
+    if (!customLink.empty()) {
+        return customLink;
+    }
+    auto customPort = Mod::get()->getSettingValue<std::string>("custom-api-port");
+    return fmt::format("http://localhost:{}", customPort);
+} // yippee
 
 
 struct RequestData {
@@ -95,7 +103,7 @@ protected:
 
     void onBlacklistLevel(CCObject*) {
         auto req = web::WebRequest();
-        auto url = fmt::format("{}/blacklistlevel?id={}", HWGDREQS_BASE_URL, m_data.id);
+        auto url = fmt::format("{}/blacklistlevel?id={}", getHwgdreqsBaseUrl(), m_data.id);
         async::spawn(
             req.get(url),
             [this](web::WebResponse res) {
@@ -110,7 +118,7 @@ protected:
 
     void onBlacklistAuthor(CCObject*) {
         auto req = web::WebRequest();
-        auto url = fmt::format("{}{}{}", HWGDREQS_BASE_URL, "/banauthor?id=", m_data.id);
+        auto url = fmt::format("{}{}{}", getHwgdreqsBaseUrl(), "/banauthor?id=", m_data.id);
         async::spawn(
             req.get(url),
             [this](web::WebResponse res) {
@@ -125,7 +133,7 @@ protected:
 
     void onBlacklistRequester(CCObject*) {
         auto req = web::WebRequest();
-        auto url = fmt::format("{}{}{}", HWGDREQS_BASE_URL, "/banrequester?id=", m_data.id);
+        auto url = fmt::format("{}{}{}", getHwgdreqsBaseUrl(), "/banrequester?id=", m_data.id);
         async::spawn(
             req.get(url),
             [this](web::WebResponse res) {
@@ -141,7 +149,7 @@ protected:
     void onBanRequester(CCObject*) {
         int levelId = m_data.id;
         auto req = web::WebRequest();
-        auto url = fmt::format("{}{}{}", HWGDREQS_BASE_URL, "/bantwitch?id=", levelId);
+        auto url = fmt::format("{}{}{}", getHwgdreqsBaseUrl(), "/bantwitch?id=", levelId);
         async::spawn(
             req.get(url),
             [levelId](web::WebResponse res) {
@@ -348,7 +356,7 @@ protected:
 
     void onDelete(CCObject*) {
         auto req = web::WebRequest();
-        auto url = fmt::format("{}/delete?id={}", HWGDREQS_BASE_URL, m_data.id);
+        auto url = fmt::format("{}/delete?id={}", getHwgdreqsBaseUrl(), m_data.id);
         async::spawn(
             req.get(url),
             [this](web::WebResponse res) {
@@ -417,7 +425,7 @@ class $modify(MyMenuLayer, MenuLayer) {
         auto req = web::WebRequest();
         m_fields->m_webListener.spawn(
             "Fetching Request",
-            req.get(std::string(HWGDREQS_BASE_URL) + "/current"),
+            req.get(getHwgdreqsBaseUrl() + "/current"),
             [this](web::WebResponse res) {
                 if (!res.ok()) {
                     FLAlertLayer::create("HwGDReqs fail", "failed connecting to app, make sure the desktop app is open", "OK")->show();
