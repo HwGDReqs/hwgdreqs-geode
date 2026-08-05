@@ -1,4 +1,1 @@
-# HwGDReqsintegration
-This is where she makes a mod.
-
-<img src="logo.png" width="150" alt="the mod's logo" />
+## THIS WILL NOT MAKE IT TO GEODE's IN GAME MOD BROWSER/INDEX, I GOT BANNED CUZ INDEX STAFF THOUGHT I'M MALIK'S ALT AND EVADING A BAN (since MalikHw47 is index banned) so THE MOD WILL BE INSTALLED FROM THE DESKTOP APP ITSELF SO DONT WORRY :3
