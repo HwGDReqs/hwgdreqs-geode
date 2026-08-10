@@ -105,7 +105,7 @@ protected:
         auto req = web::WebRequest();
         auto url = fmt::format("{}/blacklistlevel?id={}", getHwgdreqsBaseUrl(), m_data.id);
         async::spawn(
-            req.get(url),
+            req.post(url),
             [this](web::WebResponse res) {
                 if (!res.ok()) {
                     FLAlertLayer::create("Error", HWGDREQS_ERR_MSG, "OK")->show();
@@ -120,7 +120,7 @@ protected:
         auto req = web::WebRequest();
         auto url = fmt::format("{}{}{}", getHwgdreqsBaseUrl(), "/banauthor?id=", m_data.id);
         async::spawn(
-            req.get(url),
+            req.post(url),
             [this](web::WebResponse res) {
                 if (!res.ok()) {
                     FLAlertLayer::create("Error", HWGDREQS_ERR_MSG, "OK")->show();
@@ -135,7 +135,7 @@ protected:
         auto req = web::WebRequest();
         auto url = fmt::format("{}{}{}", getHwgdreqsBaseUrl(), "/banrequester?id=", m_data.id);
         async::spawn(
-            req.get(url),
+            req.post(url),
             [this](web::WebResponse res) {
                 if (!res.ok()) {
                     FLAlertLayer::create("Error", HWGDREQS_ERR_MSG, "OK")->show();
@@ -151,7 +151,7 @@ protected:
         auto req = web::WebRequest();
         auto url = fmt::format("{}{}{}", getHwgdreqsBaseUrl(), "/bantwitch?id=", levelId);
         async::spawn(
-            req.get(url),
+            req.post(url),
             [levelId](web::WebResponse res) {
                 auto jsonRes = res.json();
                 if (jsonRes.isOk()) {
@@ -358,7 +358,7 @@ protected:
         auto req = web::WebRequest();
         auto url = fmt::format("{}/delete?id={}", getHwgdreqsBaseUrl(), m_data.id);
         async::spawn(
-            req.get(url),
+            req.post(url),
             [this](web::WebResponse res) {
                 if (!res.ok()) {
                     FLAlertLayer::create("Error", HWGDREQS_ERR_MSG, "OK")->show();
