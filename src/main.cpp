@@ -348,14 +348,14 @@ protected:
             auto warnMenu = CCMenu::create();
             warnMenu->setPosition({ 0.f, 0.f });
             warnMenu->addChild(warnItem);
-            this->addChild(warnMenu, 10);
+            m_mainLayer->addChild(warnMenu);
         }
 
         // queue count label
         m_queueCountLabel = CCLabelBMFont::create("Queue Count: 0", "chatFont.fnt");
         m_queueCountLabel->setPosition({ 325.f, 76.f });
         m_queueCountLabel->setScale(0.775f);
-        this->addChild(m_queueCountLabel, 10);
+        m_mainLayer->addChild(m_queueCountLabel);
 
         m_mainLayer->addChild(menu);
 
@@ -475,8 +475,11 @@ class $modify(MyMenuLayer, MenuLayer) {
     bool init() {
         if (!MenuLayer::init()) return false;
 
-        auto btnSpr = CircleButtonSprite::createWithSpriteFrameName("button.png"_spr);
-        btnSpr->setScale(0.65f);
+        auto btnSpr = CircleButtonSprite::createWithSprite(
+            "button.png"_spr, 0.65f,
+            CircleBaseColor::Green,
+            CircleBaseSize::Medium
+        );
         auto btn = CCMenuItemSpriteExtra::create(
             btnSpr,
             this,
@@ -510,9 +513,6 @@ class $modify(MyMenuLayer, MenuLayer) {
 
                 auto data = jsonRes.unwrap();
 
-                bool badRequester = data.contains("bad_requester") ? data["bad_requester"].asBool().unwrapOr(false) : false;
-                std::string badRequesterReason = data.contains("bad_requester_reason") ? data["bad_requester_reason"].asString().unwrapOr("") : "";
-
                 if (!data.contains("level")) { // idk about this exact api
                     FLAlertLayer::create("HwGDReqs", "No level in queue", "OK")->show();
                     return;
@@ -522,6 +522,9 @@ class $modify(MyMenuLayer, MenuLayer) {
                     FLAlertLayer::create("HwGDReqs", "No level in queue", "OK")->show();
                     return;
                 }
+
+                bool badRequester = levelData.contains("bad_requester") ? levelData["bad_requester"].asBool().unwrapOr(false) : false;
+                std::string badRequesterReason = levelData.contains("bad_requester_reason") ? levelData["bad_requester_reason"].asString().unwrapOr("") : "";
 
                 RequestData reqData;
                 auto idStr = levelData.contains("id") ? levelData["id"].asString().unwrapOr("0") : "0";
