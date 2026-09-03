@@ -3,10 +3,31 @@
 #include <Geode/ui/BasedButtonSprite.hpp>
 #include <Geode/utils/general.hpp>
 #include <Geode/utils/web.hpp>
+#include <cctype>
 
 using namespace geode::prelude;
 
 constexpr char HWGDREQS_ERR_MSG[] = "Failed since HwGDReqs isnt running anymore";
+
+int parseFirstInt(std::string const& s) {
+    int sign = 1;
+    size_t i = 0;
+    while (i < s.size() && !std::isdigit(static_cast<unsigned char>(s[i])) && s[i] != '-') {
+        i++;
+    }
+    if (i < s.size() && s[i] == '-') {
+        sign = -1;
+        i++;
+    }
+    int value = 0;
+    bool found = false;
+    while (i < s.size() && std::isdigit(static_cast<unsigned char>(s[i]))) {
+        found = true;
+        value = value * 10 + (s[i] - '0');
+        i++;
+    }
+    return found ? value * sign : 0;
+}
 
 std::string getHwgdreqsBaseUrl() {
     auto customLink = Mod::get()->getSettingValue<std::string>("custom-api-link");
@@ -402,6 +423,12 @@ protected:
 class $modify(MyMenuLayer, MenuLayer) {
     struct Fields {
         TaskHolder<web::WebResponse> m_webListener;
+        TaskHolder<web::WebResponse> m_queueCountListener;
+        TaskHolder<web::WebResponse> m_currentStatusListener;
+        CCMenu* m_overlayMenu = nullptr;
+        CCMenuItemLabel* m_badRequesterItem = nullptr;
+        std::string m_badRequesterReason;
+        CCLabelBMFont* m_queueCountLabel = nullptr;
     };
 
     bool init() {
@@ -418,7 +445,90 @@ class $modify(MyMenuLayer, MenuLayer) {
         btn->setID("hwgdreqsBtn"_spr);
         menu->updateLayout();
 
+        m_fields->m_overlayMenu = CCMenu::create();
+        m_fields->m_overlayMenu->setPosition({ 0.f, 0.f });
+        this->addChild(m_fields->m_overlayMenu, 100);
+
+        m_fields->m_queueCountLabel = CCLabelBMFont::create("Queue Count: 0", "chatFont.fnt");
+        m_fields->m_queueCountLabel->setPosition({ 325.f, 76.f });
+        m_fields->m_queueCountLabel->setScale(0.775f);
+        this->addChild(m_fields->m_queueCountLabel, 100);
+
+        this->fetchQueueCount();
+        this->fetchCurrentStatus();
+
         return true;
+    }
+
+    void onBadRequesterInfo(CCObject*) {
+        FLAlertLayer::create("Reason", m_fields->m_badRequesterReason.c_str(), "OK")->show();
+    }
+
+    void setBadRequesterWarning(bool bad, std::string const& reason) {
+        m_fields->m_badRequesterReason = reason;
+        if (!bad) {
+            if (m_fields->m_badRequesterItem) {
+                m_fields->m_badRequesterItem->removeFromParent();
+                m_fields->m_badRequesterItem = nullptr;
+            }
+            return;
+        }
+
+        if (!m_fields->m_badRequesterItem) {
+            auto label = CCLabelBMFont::create("WARNING: NON TRUSTED REQUESTER (click for more info)", "chatFont.fnt");
+            label->setColor({ 255, 0, 0 });
+            label->setScale(0.6f);
+            auto item = CCMenuItemLabel::create(label, this, menu_selector(MyMenuLayer::onBadRequesterInfo));
+            item->setPosition({ 190.f, 265.f });
+            m_fields->m_overlayMenu->addChild(item);
+            m_fields->m_badRequesterItem = item;
+        }
+    }
+
+    void fetchQueueCount() {
+        auto req = web::WebRequest();
+        m_fields->m_queueCountListener.spawn(
+            "Fetching Queue Count",
+            req.get(getHwgdreqsBaseUrl() + "/queue/count"),
+            [this](web::WebResponse res) {
+                if (!res.ok()) {
+                    if (m_fields->m_queueCountLabel) {
+                        m_fields->m_queueCountLabel->setString("Queue Count: 0");
+                    }
+                    return;
+                }
+                auto body = res.string().unwrapOr("0");
+                auto count = parseFirstInt(body);
+                if (m_fields->m_queueCountLabel) {
+                    m_fields->m_queueCountLabel->setString(fmt::format("Queue Count: {}", count).c_str());
+                }
+            }
+        );
+    }
+
+    void fetchCurrentStatus() {
+        auto req = web::WebRequest();
+        m_fields->m_currentStatusListener.spawn(
+            "Fetching Current Status",
+            req.get(getHwgdreqsBaseUrl() + "/current"),
+            [this](web::WebResponse res) {
+                if (!res.ok()) {
+                    this->setBadRequesterWarning(false, "");
+                    return;
+                }
+
+                auto jsonRes = res.json();
+                if (!jsonRes.isOk()) {
+                    this->setBadRequesterWarning(false, "");
+                    return;
+                }
+
+                auto data = jsonRes.unwrap();
+                bool bad = data.contains("bad_requester") ? data["bad_requester"].asBool().unwrapOr(false) : false;
+                auto reason = data.contains("bad_requester_reason") ? data["bad_requester_reason"].asString().unwrapOr("") : "";
+                this->setBadRequesterWarning(bad, reason);
+            }
+        );
     }
 
     void fetchAndShowPopup() {
@@ -439,6 +549,9 @@ class $modify(MyMenuLayer, MenuLayer) {
                 }
 
                 auto data = jsonRes.unwrap();
+                bool bad = data.contains("bad_requester") ? data["bad_requester"].asBool().unwrapOr(false) : false;
+                auto reason = data.contains("bad_requester_reason") ? data["bad_requester_reason"].asString().unwrapOr("") : "";
+                this->setBadRequesterWarning(bad, reason);
                 if (!data.contains("level")) { // idk about this exact api
                     FLAlertLayer::create("HwGDReqs", "No level in queue", "OK")->show();
                     return;
@@ -463,6 +576,7 @@ class $modify(MyMenuLayer, MenuLayer) {
                 reqData.two_player = levelData.contains("two_player") ? levelData["two_player"].asBool().unwrapOr(false) : false;
 
                 ReqPopup::create(reqData, [this] {
+                    this->fetchQueueCount();
                     this->fetchAndShowPopup();
                 })->show();
             }
@@ -470,6 +584,7 @@ class $modify(MyMenuLayer, MenuLayer) {
     }
 
     void onMyButton(CCObject*) {
+        fetchQueueCount();
         fetchAndShowPopup(); // :)
     }
 };
