@@ -211,13 +211,10 @@ protected:
 
 class ReqPopup : public geode::Popup, public LevelManagerDelegate {
 public:
-    struct Fields {
-        TaskHolder<web::WebResponse> m_queueCountListener;
-        CCLabelBMFont* m_queueCountLabel = nullptr;
-    };
-
     RequestData m_data;
     geode::Function<void()> m_onRefresh;
+    TaskHolder<web::WebResponse> m_queueCountListener;
+    CCLabelBMFont* m_queueCountLabel = nullptr;
 
     static ReqPopup* create(RequestData const& data, geode::Function<void()> onRefresh) {
         auto ret = new ReqPopup();
@@ -355,10 +352,10 @@ protected:
         }
 
         // queue count label
-        m_fields->m_queueCountLabel = CCLabelBMFont::create("Queue Count: 0", "chatFont.fnt");
-        m_fields->m_queueCountLabel->setPosition({ 325.f, 76.f });
-        m_fields->m_queueCountLabel->setScale(0.775f);
-        this->addChild(m_fields->m_queueCountLabel, 10);
+        m_queueCountLabel = CCLabelBMFont::create("Queue Count: 0", "chatFont.fnt");
+        m_queueCountLabel->setPosition({ 325.f, 76.f });
+        m_queueCountLabel->setScale(0.775f);
+        this->addChild(m_queueCountLabel, 10);
 
         m_mainLayer->addChild(menu);
 
@@ -373,18 +370,18 @@ protected:
 
     void fetchQueueCount() {
         auto req = web::WebRequest();
-        m_fields->m_queueCountListener.spawn(
+        m_queueCountListener.spawn(
             "Fetching Queue Count",
             req.get(getHwgdreqsBaseUrl() + "/queue/count"),
             [this](web::WebResponse res) {
-                if (!m_fields->m_queueCountLabel) return;
+                if (!m_queueCountLabel) return;
                 if (!res.ok()) {
-                    m_fields->m_queueCountLabel->setString("Queue Count: 0");
+                    m_queueCountLabel->setString("Queue Count: 0");
                     return;
                 }
                 auto body = res.string().unwrapOr("0");
                 auto count = parseFirstInt(body);
-                m_fields->m_queueCountLabel->setString(fmt::format("Queue Count: {}", count).c_str());
+                m_queueCountLabel->setString(fmt::format("Queue Count: {}", count).c_str());
             }
         );
     }
@@ -478,13 +475,15 @@ class $modify(MyMenuLayer, MenuLayer) {
     bool init() {
         if (!MenuLayer::init()) return false;
 
+        auto btnSpr = CircleButtonSprite::createWithSpriteFrameName("button.png"_spr);
+        btnSpr->setScale(0.65f);
         auto btn = CCMenuItemSpriteExtra::create(
-            CCSprite::create("button.png"_spr),
+            btnSpr,
             this,
             menu_selector(MyMenuLayer::onMyButton)
         );
 
-        auto menu = this->getChildByID("bottom-menu");
+        auto menu = this->getChildByID("right-side-menu");
         menu->addChild(btn);
         btn->setID("hwgdreqsBtn"_spr);
         menu->updateLayout();
