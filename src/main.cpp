@@ -3,11 +3,15 @@
 #include <Geode/ui/BasedButtonSprite.hpp>
 #include <Geode/utils/general.hpp>
 #include <Geode/utils/web.hpp>
+#include <Geode/utils/async.hpp>
 #include <cctype>
+#include <fstream>
 
 using namespace geode::prelude;
 
 constexpr char HWGDREQS_ERR_MSG[] = "Failed since HwGDReqs isnt running anymore";
+static const std::string UPDATE_URL = "https://github.com/HwGDReqs/hwgdreqs-geode/releases/latest/download/hwgdreqs.hwgdreqs-integration.geode";
+static bool g_updateChecked = false;
 
 int parseFirstInt(std::string const& s) {
     int sign = 1;
@@ -467,6 +471,55 @@ protected:
     }
 };
 
+static void checkForUpdate() {
+    if (g_updateChecked) return;
+    g_updateChecked = true;
+    geode::async::spawn(
+        []() -> web::WebFuture {
+            return web::WebRequest()
+                .header("User-Agent", "hwgdreqs-geode")
+                .get("https://api.github.com/repos/HwGDReqs/hwgdreqs-geode/releases/latest");
+        },
+        [](web::WebResponse res) {
+            if (!res.ok()) return;
+            auto jsonRes = res.json();
+            if (!jsonRes) return;
+            std::string tagName = (*jsonRes)["tag_name"].asString().unwrapOr("");
+            if (tagName.empty()) return;
+            std::string tag = tagName;
+            if (!tag.empty() && tag[0] == 'v') tag = tag.substr(1);
+            std::string current = Mod::get()->getVersion().toNonVString();
+            if (tag == current) return;
+            geode::createQuickPopup(
+                "HwGDReqs Update",
+                fmt::format("A new version (<cy>{}</c>) is available!\nYou have <cr>{}</c>. Update now?", tagName, current),
+                "Later", "Update",
+                [](FLAlertLayer*, bool btn2) {
+                    if (!btn2) return;
+                    Notification::create("Downloading update...", NotificationIcon::Info)->show();
+                    geode::async::spawn(
+                        []() -> web::WebFuture {
+                            return web::WebRequest().get(UPDATE_URL);
+                        },
+                        [](web::WebResponse dlRes) {
+                            if (dlRes.ok()) {
+                                auto path = Mod::get()->getPackagePath();
+                                auto data = dlRes.data();
+                                std::ofstream file(path.string(), std::ios::binary);
+                                file.write(reinterpret_cast<const char*>(data.data()), data.size());
+                                file.close();
+                                Notification::create("Updated! Restart to apply!", NotificationIcon::Success)->show();
+                            } else {
+                                Notification::create("Update failed!", NotificationIcon::Error)->show();
+                            }
+                        }
+                    );
+                }
+            );
+        }
+    );
+}
+
 class $modify(MyMenuLayer, MenuLayer) {
     struct Fields {
         TaskHolder<web::WebResponse> m_webListener;
@@ -474,6 +527,8 @@ class $modify(MyMenuLayer, MenuLayer) {
 
     bool init() {
         if (!MenuLayer::init()) return false;
+
+        checkForUpdate();
 
         auto btnSpr = CircleButtonSprite::createWithSprite(
             "button.png"_spr, 0.65f,
