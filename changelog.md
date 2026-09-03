@@ -1,3 +1,8 @@
+## 0.4.0
+- Warning about bad requesters (needs latest HwGDReqs)
+- moved button to right side menu
+- didnt fix level saving issue
+
 ## 0.3.0
 - Fixed api to work with latest HwGDReqs
 - i (MalikHw47) inherited the mod from the other dev (Kwaita)
