@@ -9,8 +9,8 @@
 
 using namespace geode::prelude;
 
-constexpr char HWGDREQS_ERR_MSG[] = "Failed since HwGDReqs isnt running anymore";
-static const std::string UPDATE_URL = "https://github.com/HwGDReqs/hwgdreqs-geode/releases/latest/download/hwgdreqs.hwgdreqs-integration.geode";
+static const std::string REPO = "HwGDReqs/hwgdreqs-geode";
+static const std::string UPDATE_URL = "https://github.com/" + REPO + "/releases/latest/download/geekedgdplayer.click-guide-visualizer.geode";
 static bool g_updateChecked = false;
 
 int parseFirstInt(std::string const& s) {
@@ -477,8 +477,8 @@ static void checkForUpdate() {
     geode::async::spawn(
         []() -> web::WebFuture {
             return web::WebRequest()
-                .header("User-Agent", "hwgdreqs-geode")
-                .get("https://api.github.com/repos/HwGDReqs/hwgdreqs-geode/releases/latest");
+                .header("User-Agent", "click-guide-visualizer")
+                .get("https://api.github.com/repos/" + REPO + "/releases/latest");
         },
         [](web::WebResponse res) {
             if (!res.ok()) return;
@@ -486,32 +486,84 @@ static void checkForUpdate() {
             if (!jsonRes) return;
             std::string tagName = (*jsonRes)["tag_name"].asString().unwrapOr("");
             if (tagName.empty()) return;
-            std::string tag = tagName;
-            if (!tag.empty() && tag[0] == 'v') tag = tag.substr(1);
-            std::string current = Mod::get()->getVersion().toNonVString();
-            if (tag == current) return;
+            std::string latestVersion = tagName;
+            if (!latestVersion.empty() && latestVersion[0] == 'v') latestVersion = latestVersion.substr(1);
+            
+            std::string currentVersion = Mod::get()->getVersion().toNonVString();
+            
+            auto currentParts = geode::utils::string::split(currentVersion, ".");
+            auto latestParts = geode::utils::string::split(latestVersion, ".");
+            
+            bool hasUpdate = false;
+            for (size_t i = 0; i < std::max(currentParts.size(), latestParts.size()); i++) {
+                int currentPart = (i < currentParts.size()) ? std::stoi(currentParts[i]) : 0;
+                int latestPart = (i < latestParts.size()) ? std::stoi(latestParts[i]) : 0;
+                if (latestPart > currentPart) {
+                    hasUpdate = true;
+                    break;
+                } else if (latestPart < currentPart) {
+                    break;
+                }
+            }
+            
+            if (!hasUpdate) return;
+            
+            auto assets = (*jsonRes)["assets"].asArray();
+            std::string downloadUrl;
+            std::string sha256;
+            for (auto& asset : assets) {
+                auto name = asset["name"].asString().unwrapOr("");
+                if (name == "geekedgdplayer.click-guide-visualizer.geode") {
+                    downloadUrl = asset["browser_download_url"].asString().unwrapOr("");
+                    sha256 = asset["sha256"].asString().unwrapOr("");
+                    break;
+                }
+            }
+            
+            if (downloadUrl.empty()) return;
+            
             geode::createQuickPopup(
                 "HwGDReqs Update",
-                fmt::format("A new version (<cy>{}</c>) is available!\nYou have <cr>{}</c>. Update now?", tagName, current),
+                fmt::format("A new version (<cy>{}</c>) is available!\nYou have <cr>{}</c>. Update now?", tagName, currentVersion),
                 "Later", "Update",
-                [](FLAlertLayer*, bool btn2) {
+                [downloadUrl, sha256, tagName](FLAlertLayer*, bool btn2) {
                     if (!btn2) return;
                     Notification::create("Downloading update...", NotificationIcon::Info)->show();
                     geode::async::spawn(
-                        []() -> web::WebFuture {
-                            return web::WebRequest().get(UPDATE_URL);
+                        [downloadUrl]() -> web::WebFuture {
+                            return web::WebRequest().get(downloadUrl);
                         },
-                        [](web::WebResponse dlRes) {
-                            if (dlRes.ok()) {
-                                auto path = Mod::get()->getPackagePath();
-                                auto data = dlRes.data();
-                                std::ofstream file(path.string(), std::ios::binary);
-                                file.write(reinterpret_cast<const char*>(data.data()), data.size());
-                                file.close();
-                                Notification::create("Updated! Restart to apply!", NotificationIcon::Success)->show();
-                            } else {
+                        [downloadUrl, sha256, tagName](web::WebResponse dlRes) {
+                            if (!dlRes.ok()) {
                                 Notification::create("Update failed!", NotificationIcon::Error)->show();
+                                return;
                             }
+                            
+                            auto path = Mod::get()->getPackagePath();
+                            auto downloadPath = path.parent_path() / (path.stem().string() + "-downloading.geode");
+                            
+                            auto data = dlRes.data();
+                            std::ofstream file(downloadPath.string(), std::ios::binary);
+                            file.write(reinterpret_cast<const char*>(data.data()), data.size());
+                            file.close();
+                            
+                            auto hash = geode::crypto::sha256(data);
+                            std::string hashHex = geode::crypto::hexEncode(hash);
+                            
+                            if (hashHex != sha256) {
+                                std::filesystem::remove(downloadPath);
+                                Notification::create("Update failed: Integrity check failed!", NotificationIcon::Error)->show();
+                                return;
+                            }
+                            
+                            std::error_code ec;
+                            std::filesystem::rename(downloadPath, path, ec);
+                            if (ec) {
+                                Notification::create("Update failed: Could not replace file!", NotificationIcon::Error)->show();
+                                return;
+                            }
+                            
+                            Notification::create("Updated! Restart to apply!", NotificationIcon::Success)->show();
                         }
                     );
                 }
