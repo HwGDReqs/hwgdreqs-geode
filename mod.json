@@ -1,5 +1,5 @@
 {
-	"geode": "5.8.1",
+	"geode": "5.11.2",
 	"gd": {
 		"win": "2.2081",
 		"android": "2.2081",
@@ -7,8 +7,11 @@
 	},
 	"id": "hwgdreqs.hwgdreqs-integration",
 	"name": "HwGDReqs integration",
-	"version": "v0.5.1",
-	"developers": ["HwGDReqs org", "MalikHw47"],
+	"version": "v0.5.2",
+	"developers": [
+		"HwGDReqs org",
+		"MalikHw47"
+	],
 	"description": "HwGDReqs integrated to gd",
 	"dependencies": {
 		"geode.node-ids": ">=v1.23.3"
@@ -27,7 +30,7 @@
 		},
 		"custom-api-link": {
 			"name": "Custom API link",
-			"description": "Only for Local Network option turned on HwGDReqs desktop, You'd have to change it every HwGDReqs reboot tho",
+			"description": "Only for Local Network option turned on HwGDReqs desktop or using an API from online, You'd have to change it every HwGDReqs reboot tho",
 			"type": "string",
 			"default": "",
 			"filter": "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!+-/:;',._?=%&"

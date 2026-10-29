@@ -4,6 +4,8 @@
 #include <Geode/utils/general.hpp>
 #include <Geode/utils/web.hpp>
 #include <Geode/utils/async.hpp>
+#include <Geode/ui/MDTextArea.hpp>
+#include <Geode/utils/hash.hpp>
 #include <cctype>
 #include <fstream>
 
@@ -11,6 +13,7 @@ using namespace geode::prelude;
 
 static const std::string REPO = "HwGDReqs/hwgdreqs-geode";
 static const std::string UPDATE_URL = "https://github.com/" + REPO + "/releases/latest/download/geekedgdplayer.click-guide-visualizer.geode";
+static const char* HWGDREQS_ERR_MSG = "Failed connecting to app, make sure the desktop app is open";
 static bool g_updateChecked = false;
 
 int parseFirstInt(std::string const& s) {
@@ -461,12 +464,165 @@ protected:
         auto lvl = typeinfo_cast<GJGameLevel*>(lvls->objectAtIndex(0));
         if (!lvl) return;
         
-        glm->saveLevel(lvl); // malik and da streamers will be HAPPY cuz of this one >:3
-        // edit this didnt work, so looking for a way to save the level :sob:
+        glm->saveLevel(lvl);
+        auto savedLevels = glm->getSavedLevels(false, lvl->m_levelFolder);
+        if (!savedLevels || savedLevels->count() == 0) {
+            savedLevels = glm->getSavedLevels(false, 0);
+        }
+        if (savedLevels && savedLevels->count() > 1) {
+            auto firstObj = typeinfo_cast<GJGameLevel*>(savedLevels->objectAtIndex(0));
+            if (firstObj && (firstObj == lvl || firstObj->m_levelID == lvl->m_levelID)) {
+                firstObj->retain();
+                savedLevels->removeObjectAtIndex(0);
+                savedLevels->addObject(firstObj);
+                firstObj->release();
+            } else {
+                for (size_t i = 0; i < savedLevels->count(); ++i) {
+                    auto item = typeinfo_cast<GJGameLevel*>(savedLevels->objectAtIndex(i));
+                    if (item && (item == lvl || item->m_levelID == lvl->m_levelID)) {
+                        item->retain();
+                        savedLevels->removeObjectAtIndex(i);
+                        savedLevels->addObject(item);
+                        item->release();
+                        break;
+                    }
+                }
+            }
+            glm->updateLevelOrders();
+        }
+
 
         auto scene = LevelInfoLayer::scene(lvl, false);
         CCDirector::sharedDirector()->replaceScene(
             CCTransitionFade::create(0.5f, scene)
+        );
+    }
+};
+
+class UpdatePopup : public geode::Popup {
+public:
+    std::string m_tagName;
+    std::string m_currentVersion;
+    std::string m_body;
+    std::string m_downloadUrl;
+    std::string m_sha256;
+
+    static UpdatePopup* create(
+        std::string const& tagName,
+        std::string const& currentVersion,
+        std::string const& body,
+        std::string const& downloadUrl,
+        std::string const& sha256
+    ) {
+        auto ret = new UpdatePopup();
+        ret->m_tagName = tagName;
+        ret->m_currentVersion = currentVersion;
+        ret->m_body = body;
+        ret->m_downloadUrl = downloadUrl;
+        ret->m_sha256 = sha256;
+        if (ret->init()) {
+            ret->autorelease();
+            return ret;
+        }
+        delete ret;
+        return nullptr;
+    }
+
+protected:
+    bool init() override {
+        if (!Popup::init(380.f, 260.f))
+            return false;
+
+        this->setTitle("HwGDReqs Update");
+
+        auto winSize = m_mainLayer->getContentSize();
+
+        auto versionLabel = CCLabelBMFont::create(
+            fmt::format("Current: {} -> New: {}", m_currentVersion, m_tagName).c_str(),
+            "chatFont.fnt"
+        );
+        versionLabel->setScale(0.7f);
+        versionLabel->setPosition({ winSize.width / 2, winSize.height - 40.f });
+        m_mainLayer->addChild(versionLabel);
+
+        auto mdText = m_body.empty() ? "No changelog provided." : m_body;
+        auto mdArea = MDTextArea::create(mdText, { 340.f, 135.f });
+        mdArea->setPosition({ winSize.width / 2 - 170.f, winSize.height / 2 - 75.f });
+        m_mainLayer->addChild(mdArea);
+
+        auto menu = CCMenu::create();
+        menu->setPosition({ winSize.width / 2, 30.f });
+
+        auto laterBtnSpr = ButtonSprite::create("Later", "goldFont.fnt", "GJ_button_01.png", 0.8f);
+        auto laterBtn = CCMenuItemSpriteExtra::create(
+            laterBtnSpr,
+            this,
+            menu_selector(UpdatePopup::onLater)
+        );
+        laterBtn->setPosition({ -65.f, 0.f });
+        menu->addChild(laterBtn);
+
+        auto updateBtnSpr = ButtonSprite::create("Update", "goldFont.fnt", "GJ_button_01.png", 0.8f);
+        auto updateBtn = CCMenuItemSpriteExtra::create(
+            updateBtnSpr,
+            this,
+            menu_selector(UpdatePopup::onUpdate)
+        );
+        updateBtn->setPosition({ 65.f, 0.f });
+        menu->addChild(updateBtn);
+
+        m_mainLayer->addChild(menu);
+
+        return true;
+    }
+
+    void onLater(CCObject*) {
+        this->removeFromParent();
+    }
+
+    void onUpdate(CCObject*) {
+        this->removeFromParent();
+        Notification::create("Downloading update...", NotificationIcon::Info)->show();
+        auto downloadUrl = m_downloadUrl;
+        auto sha256 = m_sha256;
+        geode::async::spawn(
+            [downloadUrl]() -> web::WebFuture {
+                return web::WebRequest().get(downloadUrl);
+            },
+            [downloadUrl, sha256](web::WebResponse dlRes) {
+                if (!dlRes.ok()) {
+                    Notification::create("Update failed!", NotificationIcon::Error)->show();
+                    return;
+                }
+                
+                auto path = Mod::get()->getPackagePath();
+                auto downloadPath = path.parent_path() / (path.stem().string() + "-downloading.geode");
+                
+                auto data = dlRes.data();
+                std::ofstream file(downloadPath.string(), std::ios::binary);
+                file.write(reinterpret_cast<const char*>(data.data()), data.size());
+                file.close();
+                
+                if (!sha256.empty()) {
+                    auto hash = geode::sha256(data);
+                    std::string hashHex = hash.toString();
+                    
+                    if (hashHex != sha256) {
+                        std::filesystem::remove(downloadPath);
+                        Notification::create("Update failed: Integrity check failed!", NotificationIcon::Error)->show();
+                        return;
+                    }
+                }
+                
+                std::error_code ec;
+                std::filesystem::rename(downloadPath, path, ec);
+                if (ec) {
+                    Notification::create("Update failed: Could not replace file!", NotificationIcon::Error)->show();
+                    return;
+                }
+                
+                Notification::create("Updated! Restart to apply!", NotificationIcon::Success)->show();
+            }
         );
     }
 };
@@ -477,7 +633,7 @@ static void checkForUpdate() {
     geode::async::spawn(
         []() -> web::WebFuture {
             return web::WebRequest()
-                .header("User-Agent", "click-guide-visualizer")
+                .header("User-Agent", "hwgdreqs-geode")
                 .get("https://api.github.com/repos/" + REPO + "/releases/latest");
         },
         [](web::WebResponse res) {
@@ -496,8 +652,8 @@ static void checkForUpdate() {
             
             bool hasUpdate = false;
             for (size_t i = 0; i < std::max(currentParts.size(), latestParts.size()); i++) {
-                int currentPart = (i < currentParts.size()) ? std::stoi(currentParts[i]) : 0;
-                int latestPart = (i < latestParts.size()) ? std::stoi(latestParts[i]) : 0;
+                int currentPart = (i < currentParts.size()) ? parseFirstInt(currentParts[i]) : 0;
+                int latestPart = (i < latestParts.size()) ? parseFirstInt(latestParts[i]) : 0;
                 if (latestPart > currentPart) {
                     hasUpdate = true;
                     break;
@@ -508,66 +664,28 @@ static void checkForUpdate() {
             
             if (!hasUpdate) return;
             
-            auto assets = (*jsonRes)["assets"].asArray();
+            auto assetsRes = (*jsonRes)["assets"].asArray();
+            if (!assetsRes) return;
             std::string downloadUrl;
             std::string sha256;
-            for (auto& asset : assets) {
+            for (auto& asset : *assetsRes) {
                 auto name = asset["name"].asString().unwrapOr("");
-                if (name == "geekedgdplayer.click-guide-visualizer.geode") {
+                if (name == (Mod::get()->getID() + ".geode") ||
+                    name == "geekedgdplayer.click-guide-visualizer.geode" ||
+                    geode::utils::string::endsWith(name, ".geode")) {
                     downloadUrl = asset["browser_download_url"].asString().unwrapOr("");
-                    sha256 = asset["sha256"].asString().unwrapOr("");
+                    if (asset.contains("sha256")) {
+                        sha256 = asset["sha256"].asString().unwrapOr("");
+                    }
                     break;
                 }
             }
             
             if (downloadUrl.empty()) return;
+
+            std::string releaseBody = (*jsonRes)["body"].asString().unwrapOr("");
             
-            geode::createQuickPopup(
-                "HwGDReqs Update",
-                fmt::format("A new version (<cy>{}</c>) is available!\nYou have <cr>{}</c>. Update now?", tagName, currentVersion),
-                "Later", "Update",
-                [downloadUrl, sha256, tagName](FLAlertLayer*, bool btn2) {
-                    if (!btn2) return;
-                    Notification::create("Downloading update...", NotificationIcon::Info)->show();
-                    geode::async::spawn(
-                        [downloadUrl]() -> web::WebFuture {
-                            return web::WebRequest().get(downloadUrl);
-                        },
-                        [downloadUrl, sha256, tagName](web::WebResponse dlRes) {
-                            if (!dlRes.ok()) {
-                                Notification::create("Update failed!", NotificationIcon::Error)->show();
-                                return;
-                            }
-                            
-                            auto path = Mod::get()->getPackagePath();
-                            auto downloadPath = path.parent_path() / (path.stem().string() + "-downloading.geode");
-                            
-                            auto data = dlRes.data();
-                            std::ofstream file(downloadPath.string(), std::ios::binary);
-                            file.write(reinterpret_cast<const char*>(data.data()), data.size());
-                            file.close();
-                            
-                            auto hash = geode::crypto::sha256(data);
-                            std::string hashHex = geode::crypto::hexEncode(hash);
-                            
-                            if (hashHex != sha256) {
-                                std::filesystem::remove(downloadPath);
-                                Notification::create("Update failed: Integrity check failed!", NotificationIcon::Error)->show();
-                                return;
-                            }
-                            
-                            std::error_code ec;
-                            std::filesystem::rename(downloadPath, path, ec);
-                            if (ec) {
-                                Notification::create("Update failed: Could not replace file!", NotificationIcon::Error)->show();
-                                return;
-                            }
-                            
-                            Notification::create("Updated! Restart to apply!", NotificationIcon::Success)->show();
-                        }
-                    );
-                }
-            );
+            UpdatePopup::create(tagName, currentVersion, releaseBody, downloadUrl, sha256)->show();
         }
     );
 }
