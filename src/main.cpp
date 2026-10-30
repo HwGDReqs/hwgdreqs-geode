@@ -453,7 +453,7 @@ protected:
         BlacklistPopup::create(m_data, std::move(m_onRefresh))->show();
     }
 
-    void loadLevelsFinished(CCArray* lvls, char const*, int) override {
+    void loadLevelsFinished(cocos2d::CCArray* lvls, char const*, int) override {
         auto glm = GameLevelManager::sharedState();
         glm->m_levelManagerDelegate = nullptr;
 
@@ -461,21 +461,12 @@ protected:
 
         auto lvl = typeinfo_cast<GJGameLevel*>(lvls->objectAtIndex(0));
         if (!lvl) return;
-        
-        glm->saveLevel(lvl); // malik and da streamers will be HAPPY cuz of this one >:3
-
-        auto newLevels = CCDictionary::create();
-        newLevels->retain();
-        newLevels->setObject(lvl, lvl->m_levelID.value());
-        for (auto [id, other] : glm->m_mainLevels->asExt<int, GJGameLevel>()) {
-            if (other != lvl) newLevels->setObject(other, id);
-        }
-        glm->m_mainLevels->release();
-        glm->m_mainLevels = newLevels;
+        glm->saveLevel(lvl);
+        glm->moveLevelToTop(lvl);
 
         auto scene = LevelInfoLayer::scene(lvl, false);
         CCDirector::sharedDirector()->replaceScene(
-            CCTransitionFade::create(0.5f, scene)
+        CCTransitionFade::create(0.5f, scene)
         );
     }
 };
