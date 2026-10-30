@@ -467,7 +467,7 @@ protected:
         auto newLevels = CCDictionary::create();
         newLevels->retain();
         newLevels->setObject(lvl, lvl->m_levelID.value());
-        for (auto& [id, other] : glm->m_mainLevels->asExt<int, GJGameLevel>()) {
+        for (auto [id, other] : glm->m_mainLevels->asExt<int, GJGameLevel>()) {
             if (other != lvl) newLevels->setObject(other, id);
         }
         glm->m_mainLevels->release();
