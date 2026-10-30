@@ -461,12 +461,12 @@ protected:
 
         auto lvl = typeinfo_cast<GJGameLevel*>(lvls->objectAtIndex(0));
         if (!lvl) return;
+
         glm->saveLevel(lvl);
-        glm->moveLevelToTop(lvl);
 
         auto scene = LevelInfoLayer::scene(lvl, false);
         CCDirector::sharedDirector()->replaceScene(
-        CCTransitionFade::create(0.5f, scene)
+            CCTransitionFade::create(0.5f, scene)
         );
     }
 };
