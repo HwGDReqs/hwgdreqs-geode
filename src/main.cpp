@@ -463,12 +463,15 @@ protected:
         if (!lvl) return;
         
         glm->saveLevel(lvl); // malik and da streamers will be HAPPY cuz of this one >:3
-        
-        auto savedLevels = glm->getSavedLevels(false, 0);
-        if (savedLevels && savedLevels->count() > 0 && savedLevels->objectAtIndex(0) == lvl) {
-            savedLevels->removeObjectAtIndex(0);
-            savedLevels->addObject(lvl);
+
+        auto newLevels = CCDictionary::create();
+        newLevels->retain();
+        newLevels->setObject(lvl, lvl->m_levelID.value());
+        for (auto& [id, other] : glm->m_mainLevels->asExt<int, GJGameLevel>()) {
+            if (other != lvl) newLevels->setObject(other, id);
         }
+        glm->m_mainLevels->release();
+        glm->m_mainLevels = newLevels;
 
         auto scene = LevelInfoLayer::scene(lvl, false);
         CCDirector::sharedDirector()->replaceScene(
@@ -483,15 +486,24 @@ static void checkForUpdate() {
     geode::async::spawn(
         []() -> web::WebFuture {
             return web::WebRequest()
-                .header("User-Agent", "click-guide-visualizer")
+                .header("User-Agent", "hwgdreqs-geode")
                 .get("https://api.github.com/repos/" + REPO + "/releases/latest");
         },
         [](web::WebResponse res) {
-            if (!res.ok()) return;
+            if (!res.ok()) {
+                log::warn("HwGDReqs update check: request failed ({})", res.code());
+                return;
+            }
             auto jsonRes = res.json();
-            if (!jsonRes) return;
+            if (!jsonRes) {
+                log::warn("HwGDReqs update check: response wasn't valid JSON");
+                return;
+            }
             std::string tagName = (*jsonRes)["tag_name"].asString().unwrapOr("");
-            if (tagName.empty()) return;
+            if (tagName.empty()) {
+                log::warn("HwGDReqs update check: no tag_name in latest release");
+                return;
+            }
             std::string releaseBody = (*jsonRes)["body"].asString().unwrapOr("");
             std::string latestVersion = tagName;
             if (!latestVersion.empty() && latestVersion[0] == 'v') latestVersion = latestVersion.substr(1);
@@ -513,7 +525,12 @@ static void checkForUpdate() {
                 }
             }
             
-            if (!hasUpdate) return;
+            if (!hasUpdate) {
+                log::debug("HwGDReqs update check: already up to date ({} >= {})", currentVersion, latestVersion);
+                return;
+            }
+            
+            std::string assetName = Mod::get()->getID() + ".geode";
             
             auto assetsRes = (*jsonRes)["assets"].asArray();
             std::string downloadUrl;
@@ -521,15 +538,20 @@ static void checkForUpdate() {
             if (assetsRes.isOk()) {
                 for (auto& asset : assetsRes.unwrap()) {
                     auto name = asset["name"].asString().unwrapOr("");
-                    if (name == "geekedgdplayer.click-guide-visualizer.geode") {
+                    if (name == assetName) {
                         downloadUrl = asset["browser_download_url"].asString().unwrapOr("");
-                        sha256 = asset["sha256"].asString().unwrapOr("");
+                        std::string digest = asset["digest"].asString().unwrapOr("");
+                        auto prefix = std::string("sha256:");
+                        if (digest.rfind(prefix, 0) == 0) sha256 = digest.substr(prefix.size());
                         break;
                     }
                 }
             }
             
-            if (downloadUrl.empty()) return;
+            if (downloadUrl.empty()) {
+                log::warn("HwGDReqs update check: no release asset named '{}' found", assetName);
+                return;
+            }
             
             auto popupContent = fmt::format(
                 "A new version (<cy>{}</c>) is available!\nYou have <cr>{}</c>.\n\n---\n\n{}",
