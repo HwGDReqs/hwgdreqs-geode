@@ -1,3 +1,6 @@
+## v0.6.1
+- 2.2091 port
+
 ## 0.4.0
 - Warning about bad requesters (needs latest HwGDReqs)
 - moved button to right side menu

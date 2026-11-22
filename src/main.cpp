@@ -4,8 +4,9 @@
 #include <Geode/utils/general.hpp>
 #include <Geode/utils/web.hpp>
 #include <Geode/utils/async.hpp>
+#include <Geode/utils/crypto.hpp>
+#include <asp/fs/fs.hpp>
 #include <cctype>
-#include <fstream>
 
 using namespace geode::prelude;
 
@@ -450,7 +451,9 @@ protected:
     }
 
     void onBlacklist(CCObject*) {
-        BlacklistPopup::create(m_data, std::move(m_onRefresh))->show();
+        BlacklistPopup::create(m_data, [self = Ref(this)] {
+            if (self->m_onRefresh) self->m_onRefresh();
+        })->show();
     }
 
     void loadLevelsFinished(cocos2d::CCArray* lvls, char const*, int) override {
@@ -565,26 +568,26 @@ static void checkForUpdate() {
                                 return;
                             }
                             
-                            auto path = Mod::get()->getPackagePath();
-                            auto downloadPath = path.parent_path() / (path.stem().string() + "-downloading.geode");
-                            
-                            auto data = dlRes.data();
-                            std::ofstream file(downloadPath.string(), std::ios::binary);
-                            file.write(reinterpret_cast<const char*>(data.data()), data.size());
-                            file.close();
-                            
+                            asp::fs::Path path = Mod::get()->getPackagePath();
+                            asp::fs::Path downloadPath = path;
+                            downloadPath.replaceFilename(fmt::format("{}-downloading.geode", path.stem().value_or("")));
+
+                            auto const& data = dlRes.data();
+                            if (asp::fs::write(downloadPath, data).isErr()) {
+                                Notification::create("Update failed: Could not write file!", NotificationIcon::Error)->show();
+                                return;
+                            }
+
                             auto hash = geode::sha256(data);
                             std::string hashHex = hash.toString();
-                            
+
                             if (hashHex != sha256) {
-                                std::filesystem::remove(downloadPath);
+                                (void) asp::fs::removeFile(downloadPath);
                                 Notification::create("Update failed: Integrity check failed!", NotificationIcon::Error)->show();
                                 return;
                             }
-                            
-                            std::error_code ec;
-                            std::filesystem::rename(downloadPath, path, ec);
-                            if (ec) {
+
+                            if (asp::fs::rename(downloadPath, path).isErr()) {
                                 Notification::create("Update failed: Could not replace file!", NotificationIcon::Error)->show();
                                 return;
                             }
@@ -661,7 +664,7 @@ class $modify(MyMenuLayer, MenuLayer) {
 
                 RequestData reqData;
                 auto idStr = levelData.contains("id") ? levelData["id"].asString().unwrapOr("0") : "0";
-                reqData.id = ::numFromString<int>(idStr).unwrapOr(0);
+                reqData.id = utils::numFromString<int>(idStr).unwrapOr(0);
                 reqData.name = levelData.contains("name") ? levelData["name"].asString().unwrapOr("Unknown") : "Unknown";
                 reqData.difficulty = levelData.contains("difficulty") ? levelData["difficulty"].asString().unwrapOr("Unrated") : "Unrated";
                 reqData.author = levelData.contains("author") ? levelData["author"].asString().unwrapOr("Unknown") : "Unknown";

@@ -1,13 +1,13 @@
 {
-	"geode": "5.11.2",
+	"geode": "6.0.0-beta.1",
 	"gd": {
-		"win": "2.2081",
-		"android": "2.2081",
-		"mac": "2.2081"
+		"win": "2.2091",
+		"android": "2.2091",
+		"mac": "2.2091"
 	},
 	"id": "hwgdreqs.hwgdreqs-integration",
 	"name": "HwGDReqs integration",
-	"version": "v0.6.0",
+	"version": "v0.6.1",
 	"developers": ["HwGDReqs org", "MalikHw47"],
 	"description": "HwGDReqs integrated to gd",
 	"dependencies": {
